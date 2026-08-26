@@ -227,6 +227,9 @@ func compareMember(a, b model.Member) int {
 func cloneMember(member model.Member) model.Member { return member }
 
 func cloneTime(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
 	result := new(time.Time)
 	*result = *value
 	return result
