@@ -70,8 +70,8 @@ func (t *Table) Merge(incoming model.Member) (model.Member, bool) {
 	}
 	t.members[incoming.NodeID] = next
 	result := cloneMember(next.member)
-	t.notify(result)
 	t.mu.Unlock()
+	t.notify(result)
 	return result, true
 }
 
@@ -91,8 +91,8 @@ func (t *Table) refute(incoming model.Member) (model.Member, bool) {
 	self.lastOK = &seen
 	t.members[t.selfID] = self
 	result := cloneMember(self.member)
-	t.notify(result)
 	t.mu.Unlock()
+	t.notify(result)
 	return result, true
 }
 
@@ -138,10 +138,10 @@ func (t *Table) Tick(now time.Time) []model.Member {
 		t.members[nodeID] = state
 		changed = append(changed, cloneMember(state.member))
 	}
+	t.mu.Unlock()
 	for _, member := range changed {
 		t.notify(member)
 	}
-	t.mu.Unlock()
 	return changed
 }
 
