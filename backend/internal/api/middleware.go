@@ -41,7 +41,9 @@ func (m middleware) wrap(next http.Handler) http.Handler {
 		response.Header().Set("X-MiniEureka-Request-ID", requestID(request.Context()))
 		writer := &statusWriter{ResponseWriter: response, status: http.StatusOK}
 		if m.metrics != nil {
-			defer m.metrics.ObserveAPI(request.Method, writer.status, time.Since(started))
+			defer func() {
+				m.metrics.ObserveAPI(request.Method, writer.status, time.Since(started))
+			}()
 		}
 		defer func() {
 			if recovered := recover(); recovered != nil {
