@@ -45,10 +45,7 @@ func New(managerService *service.Service, options Options) *Manager {
 	if options.Logger == nil {
 		options.Logger = slog.Default()
 	}
-	manager := &Manager{opts: options, leases: make(map[string]lease)}
-	if options.Seed {
-		manager.service = managerService
-	}
+	manager := &Manager{service: managerService, opts: options, leases: make(map[string]lease)}
 	return manager
 }
 
