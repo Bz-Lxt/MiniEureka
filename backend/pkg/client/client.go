@@ -62,14 +62,8 @@ func (c *Client) Heartbeat(ctx context.Context, instance model.Instance, operati
 	var response struct {
 		Data model.Instance `json:"data"`
 	}
-	requestContext := context.Background()
-	if deadline, ok := ctx.Deadline(); ok {
-		var cancel context.CancelFunc
-		requestContext, cancel = context.WithDeadline(requestContext, deadline)
-		defer cancel()
-	}
 	path := "/api/v1/services/" + url.PathEscape(instance.Service) + "/instances/" + url.PathEscape(instance.InstanceID) + "/heartbeat"
-	err := c.doJSON(requestContext, http.MethodPut, path, map[string]string{"lease_id": instance.LeaseID, "operation_id": operationID}, &response)
+	err := c.doJSON(ctx, http.MethodPut, path, map[string]string{"lease_id": instance.LeaseID, "operation_id": operationID}, &response)
 	return response.Data, err
 }
 
