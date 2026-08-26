@@ -112,7 +112,9 @@ func (a *Authenticator) Encode(envelope Envelope) ([]byte, error) {
 	if len(encoded) > a.maxBytes {
 		return nil, ErrMessageTooLarge
 	}
-	return encoded, nil
+	result := make([]byte, len(encoded))
+	copy(result, encoded)
+	return result, nil
 }
 
 func (a *Authenticator) DecodeAndVerify(data []byte) (Envelope, error) {
