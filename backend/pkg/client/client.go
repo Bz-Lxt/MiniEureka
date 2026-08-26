@@ -87,13 +87,7 @@ func (c *Client) doJSON(ctx context.Context, method, path string, input, output 
 		}
 		body = bytes.NewReader(encoded)
 	}
-	requestContext := context.WithoutCancel(ctx)
-	if deadline, ok := ctx.Deadline(); ok {
-		var cancel context.CancelFunc
-		requestContext, cancel = context.WithDeadline(requestContext, deadline)
-		defer cancel()
-	}
-	request, err := http.NewRequestWithContext(requestContext, method, c.baseURL+path, body)
+	request, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
 	if err != nil {
 		return err
 	}
