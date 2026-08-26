@@ -1,0 +1,8 @@
+FROM mcr.microsoft.com/playwright:v1.58.0-noble
+
+WORKDIR /workspace/frontend-admin
+COPY frontend-admin/package.json frontend-admin/package-lock.json ./
+RUN npm ci --ignore-scripts
+COPY frontend-admin/playwright.config.ts ./playwright.config.ts
+COPY frontend-admin/e2e/e2e_flow.spec.ts ./e2e/e2e_flow.spec.ts
+ENTRYPOINT ["npx", "playwright", "test"]
