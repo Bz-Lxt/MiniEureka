@@ -1,0 +1,49 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Go
+backend/bin/
+backend/coverage/
+backend/coverage.out
+backend/vendor/
+*.test
+*.prof
+
+# Node / Vite / Playwright
+frontend-admin/node_modules/
+frontend-admin/dist/
+frontend-admin/coverage/
+frontend-admin/.vite/
+test-results/
+playwright-report/
+blob-report/
+
+# Python smoke tests
+__pycache__/
+.pytest_cache/
+*.py[cod]
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Runtime artifacts
+*.log
+tmp/
+artifacts/
+/docs/
+/.alkaid-sop
+/CLAUDE.md
+/AGENTS.md
+/.cursorrules
+/.github/
+/BUG_REPRO.md
+/BUG_INJECT.md
+/defects.md
