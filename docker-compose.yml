@@ -1,0 +1,170 @@
+name: minieureka
+
+x-registry-common: &registry-common
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp:size=32m,mode=1777
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  networks:
+    - registry-net
+  healthcheck:
+    test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+    interval: 5s
+    timeout: 3s
+    start_period: 5s
+    retries: 20
+  stop_grace_period: 20s
+  mem_limit: 384m
+  cpus: 1.0
+
+services:
+  registry-1:
+    <<: *registry-common
+    hostname: registry-1
+    environment:
+      NODE_ID: node-1
+      CLUSTER_ID: ${MINIEUREKA_CLUSTER_ID:-minieureka-local}
+      HTTP_ADDR: :8080
+      HTTP_ADVERTISE_ADDR: http://registry-1:8080
+      GOSSIP_ADDR: :7946
+      GOSSIP_ADVERTISE_ADDR: registry-1:7946
+      GOSSIP_SEEDS: registry-2:7946,registry-3:7946
+      GOSSIP_SECRET: ${MINIEUREKA_GOSSIP_SECRET:-local-demo-secret-change-me}
+      LOG_LEVEL: ${MINIEUREKA_LOG_LEVEL:-info}
+      RATE_LIMIT_PER_MINUTE: ${MINIEUREKA_RATE_LIMIT_PER_MINUTE:-500000}
+      DEMO_MODE: ${MINIEUREKA_DEMO_MODE:-true}
+      DEMO_SEED: "true"
+    ports:
+      - "127.0.0.1:${MINIEUREKA_NODE1_PORT:-18781}:8080"
+
+  registry-2:
+    <<: *registry-common
+    hostname: registry-2
+    environment:
+      NODE_ID: node-2
+      CLUSTER_ID: ${MINIEUREKA_CLUSTER_ID:-minieureka-local}
+      HTTP_ADDR: :8080
+      HTTP_ADVERTISE_ADDR: http://registry-2:8080
+      GOSSIP_ADDR: :7946
+      GOSSIP_ADVERTISE_ADDR: registry-2:7946
+      GOSSIP_SEEDS: registry-1:7946,registry-3:7946
+      GOSSIP_SECRET: ${MINIEUREKA_GOSSIP_SECRET:-local-demo-secret-change-me}
+      LOG_LEVEL: ${MINIEUREKA_LOG_LEVEL:-info}
+      RATE_LIMIT_PER_MINUTE: ${MINIEUREKA_RATE_LIMIT_PER_MINUTE:-500000}
+      DEMO_MODE: ${MINIEUREKA_DEMO_MODE:-true}
+      DEMO_SEED: "false"
+    ports:
+      - "127.0.0.1:${MINIEUREKA_NODE2_PORT:-18782}:8080"
+
+  registry-3:
+    <<: *registry-common
+    hostname: registry-3
+    environment:
+      NODE_ID: node-3
+      CLUSTER_ID: ${MINIEUREKA_CLUSTER_ID:-minieureka-local}
+      HTTP_ADDR: :8080
+      HTTP_ADVERTISE_ADDR: http://registry-3:8080
+      GOSSIP_ADDR: :7946
+      GOSSIP_ADVERTISE_ADDR: registry-3:7946
+      GOSSIP_SEEDS: registry-1:7946,registry-2:7946
+      GOSSIP_SECRET: ${MINIEUREKA_GOSSIP_SECRET:-local-demo-secret-change-me}
+      LOG_LEVEL: ${MINIEUREKA_LOG_LEVEL:-info}
+      RATE_LIMIT_PER_MINUTE: ${MINIEUREKA_RATE_LIMIT_PER_MINUTE:-500000}
+      DEMO_MODE: ${MINIEUREKA_DEMO_MODE:-true}
+      DEMO_SEED: "false"
+    ports:
+      - "127.0.0.1:${MINIEUREKA_NODE3_PORT:-18783}:8080"
+
+  frontend:
+    build:
+      context: ./frontend-admin
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+      - /var/cache/nginx:size=16m,mode=0755
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    depends_on:
+      registry-1:
+        condition: service_healthy
+      registry-2:
+        condition: service_healthy
+      registry-3:
+        condition: service_healthy
+    networks:
+      - registry-net
+    ports:
+      - "127.0.0.1:${MINIEUREKA_UI_PORT:-18780}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      start_period: 5s
+      retries: 10
+    mem_limit: 128m
+    cpus: 0.5
+
+  qa-go:
+    profiles: ["qa"]
+    image: golang:1.26.5-bookworm
+    working_dir: /workspace/backend
+    environment:
+      GOCACHE: /tmp/go-build
+      GOMODCACHE: /tmp/go-mod
+    volumes:
+      - ./backend:/workspace/backend:ro
+    command: ["go", "test", "-race", "-cover", "./..."]
+    networks:
+      - registry-net
+
+  qa-api:
+    profiles: ["qa"]
+    build:
+      context: .
+      dockerfile: tests/Dockerfile.api
+    working_dir: /workspace
+    environment:
+      PYTHONIOENCODING: utf-8
+      MINIEUREKA_BASE_URL: http://frontend:8080
+      MINIEUREKA_NODE_URLS: http://registry-1:8080,http://registry-2:8080,http://registry-3:8080
+    volumes:
+      - ./tests/api_smoke.py:/workspace/tests/api_smoke.py:ro
+    depends_on:
+      frontend:
+        condition: service_healthy
+    command: ["-q", "tests/api_smoke.py"]
+    networks:
+      - registry-net
+
+  qa-e2e:
+    profiles: ["qa"]
+    build:
+      context: .
+      dockerfile: tests/Dockerfile.e2e
+    working_dir: /workspace/frontend-admin
+    environment:
+      MINIEUREKA_BASE_URL: http://frontend:8080
+    volumes:
+      - ./frontend-admin/playwright.config.ts:/workspace/frontend-admin/playwright.config.ts:ro
+      - ./frontend-admin/e2e/e2e_flow.spec.ts:/workspace/frontend-admin/e2e/e2e_flow.spec.ts:ro
+    depends_on:
+      frontend:
+        condition: service_healthy
+    command: ["--project=chromium"]
+    networks:
+      - registry-net
+
+networks:
+  registry-net:
+    driver: bridge
