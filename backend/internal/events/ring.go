@@ -26,6 +26,12 @@ type Ring struct {
 	nextSub  uint64
 	subs     map[uint64]*subscription
 	dropped  uint64
+
+	// testHookBetweenPhases, when non-nil, is called between the snapshot
+	// capture and subscription registration phases of Subscribe. It exists
+	// only to make the handoff race window wide enough to test
+	// deterministically; it is nil in production.
+	testHookBetweenPhases func()
 }
 
 func New(capacity int, nodeID, bootID string) *Ring {
@@ -136,22 +142,29 @@ func (r *Ring) Subscribe(cursor uint64, queue int) (<-chan Event, func(), error)
 	}
 	r.nextSub++
 	id := r.nextSub
-	r.mu.Unlock()
-
-	pending := make([]Event, 0, len(pendingEntries))
-	for _, entry := range pendingEntries {
-		pending = append(pending, cloneEvent(entry))
+	// The snapshot of pending entries is captured above. Register the
+	// subscription before releasing the lock so that any Publish which
+	// acquires the lock afterwards finds the subscription registered and
+	// fans the event out to it. Releasing the lock between the snapshot
+	// and registration created a handoff window in which events were
+	// missed forever (the WebSocket reconnect lost-event bug).
+	if r.testHookBetweenPhases != nil {
+		// Widen the handoff window for deterministic testing. The lock
+		// is still held, so a concurrent Publish blocks until the hook
+		// returns; once it does, Publish runs under the same lock and
+		// sees the subscription registered below.
+		r.testHookBetweenPhases()
 	}
-	if queue < len(pending)+1 {
-		queue = len(pending) + 1
+	if queue < len(pendingEntries)+1 {
+		queue = len(pendingEntries) + 1
 	}
 	sub := &subscription{channel: make(chan Event, queue)}
-	for _, event := range pending {
-		sub.channel <- event
+	for _, entry := range pendingEntries {
+		sub.channel <- cloneEvent(entry)
 	}
-	r.mu.Lock()
 	r.subs[id] = sub
 	r.mu.Unlock()
+
 	cancel := func() {
 		r.mu.Lock()
 		defer r.mu.Unlock()
