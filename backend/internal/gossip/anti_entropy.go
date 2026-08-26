@@ -127,7 +127,7 @@ func (e *Engine) SyncPeer(ctx context.Context, member model.Member) error {
 		if err != nil {
 			return err
 		}
-		request, err := http.NewRequestWithContext(context.WithoutCancel(ctx), http.MethodPost, endpoint, bytes.NewReader(body))
+		request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 		if err != nil {
 			return err
 		}
@@ -164,6 +164,9 @@ func (e *Engine) SyncPeer(ctx context.Context, member model.Member) error {
 			return errors.New("anti-entropy cursor did not advance")
 		}
 		cursor = *payload.NextCursor
+		if ctx.Err() != nil {
+			return fmt.Errorf("anti-entropy sync cancelled: %w", ctx.Err())
+		}
 	}
 	return nil
 }

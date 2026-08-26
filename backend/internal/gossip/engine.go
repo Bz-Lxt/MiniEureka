@@ -79,6 +79,7 @@ type Engine struct {
 	memberCursor int
 	ready        atomic.Bool
 	wg           sync.WaitGroup
+	lifecycleCtx context.Context
 }
 
 func NewEngine(config EngineConfig, auth *Authenticator, transport *UDPTransport, selector *Selector, members *cluster.Table, registryView RegistryView, applier MutationApplier, eventRing *events.Ring, counters Counters, logger *slog.Logger) *Engine {
@@ -139,6 +140,9 @@ func (e *Engine) Enqueue(mutation model.Mutation) {
 }
 
 func (e *Engine) Run(ctx context.Context) error {
+	e.mu.Lock()
+	e.lifecycleCtx = ctx
+	e.mu.Unlock()
 	listenErr := make(chan error, 1)
 	e.wg.Add(1)
 	go func() {
@@ -506,6 +510,7 @@ func (e *Engine) triggerSync(nodeID string) {
 		return
 	}
 	e.syncing[nodeID] = true
+	lifecycleCtx := e.lifecycleCtx
 	e.mu.Unlock()
 	e.wg.Add(1)
 	go func() {
@@ -515,7 +520,7 @@ func (e *Engine) triggerSync(nodeID string) {
 			delete(e.syncing, nodeID)
 			e.mu.Unlock()
 		}()
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(lifecycleCtx, 10*time.Second)
 		defer cancel()
 		syncErr := e.SyncPeer(ctx, member)
 		if !e.recordSyncResult(syncErr) {
