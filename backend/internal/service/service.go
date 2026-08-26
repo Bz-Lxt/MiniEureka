@@ -92,10 +92,15 @@ func (s *Service) apply(mutation model.Mutation, local bool) (registry.ApplyResu
 }
 
 func (s *Service) ApplyRemote(mutation model.Mutation) (registry.ApplyResult, error) {
-	_, observeErr := s.clock.Observe(mutation.Record.Version)
+	if _, err := s.clock.Observe(mutation.Record.Version); err != nil {
+		return registry.ApplyResult{Stale: true}, err
+	}
+	if _, err := s.clock.Observe(mutation.Record.LeaseEpoch); err != nil {
+		return registry.ApplyResult{Stale: true}, err
+	}
 	result, _, applyErr := s.apply(mutation, false)
 	if applyErr != nil {
-		return registry.ApplyResult{}, errors.Join(observeErr, applyErr)
+		return registry.ApplyResult{}, applyErr
 	}
 	return result, nil
 }
