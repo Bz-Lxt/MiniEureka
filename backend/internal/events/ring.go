@@ -59,28 +59,31 @@ func (r *Ring) Publish(event Event) Event {
 	if event.EventID == "" {
 		event.EventID = fmt.Sprintf("evt-%s-%d", r.nodeID, event.Seq)
 	}
-	event = cloneEvent(event)
+	stored := cloneEvent(event)
 	if len(r.entries) == r.capacity {
 		copy(r.entries, r.entries[1:])
-		r.entries[len(r.entries)-1] = event
+		r.entries[len(r.entries)-1] = stored
 	} else {
-		r.entries = append(r.entries, event)
+		r.entries = append(r.entries, stored)
 	}
+	// Return an independent copy so in-place mutation of the returned event
+	// (e.g., by a post-publish audit extension) cannot pollute the ring.
+	returned := cloneEvent(event)
 	for id, sub := range r.subs {
 		select {
-		case sub.channel <- cloneEvent(event):
+		case sub.channel <- cloneEvent(returned):
 		default:
 			r.dropped++
 			for len(sub.channel) > 0 {
 				<-sub.channel
 			}
 			sub.channel <- Event{
-				Seq:           event.Seq,
+				Seq:           returned.Seq,
 				SchemaVersion: SchemaVersion,
 				StreamNodeID:  r.nodeID,
 				StreamBootID:  r.bootID,
 				Type:          ResyncRequired,
-				EventID:       fmt.Sprintf("resync-%s-%d", r.nodeID, event.Seq),
+				EventID:       fmt.Sprintf("resync-%s-%d", r.nodeID, returned.Seq),
 				OriginNodeID:  r.nodeID,
 				OccurredAt:    time.Now().UTC(),
 				Payload:       jsonObject("slow_consumer"),
@@ -90,7 +93,7 @@ func (r *Ring) Publish(event Event) Event {
 			delete(r.subs, id)
 		}
 	}
-	return event
+	return returned
 }
 
 func (r *Ring) Since(cursor uint64, limit int) ([]Event, uint64, error) {
