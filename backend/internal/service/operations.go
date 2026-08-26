@@ -105,9 +105,6 @@ func (s *Service) Deregister(serviceName, instanceID, leaseID, operationID strin
 	mutation := model.Mutation{Kind: kind, Record: current, EventID: newID("evt"), OperationID: operationID}
 	result, event, err := s.apply(mutation, true)
 	if err != nil {
-		if eventID, ok := s.registry.CurrentEventID(serviceName, instanceID); ok {
-			return OperationResult{Record: current, EventID: eventID, Duplicate: true}, nil
-		}
 		return OperationResult{}, err
 	}
 	return OperationResult{Record: result.Record, EventID: appliedEventID(result, event), Duplicate: result.Duplicate}, nil
