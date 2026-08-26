@@ -1,0 +1,6 @@
+FROM python:3.13.7-alpine3.22
+
+RUN pip install --no-cache-dir pytest==8.4.1
+WORKDIR /workspace
+ENTRYPOINT ["pytest", "-p", "no:cacheprovider"]
+CMD ["-q", "tests/api_smoke.py"]
