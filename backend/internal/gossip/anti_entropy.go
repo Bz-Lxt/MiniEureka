@@ -173,7 +173,6 @@ func sendAntiEntropyRequest(client *http.Client, request *http.Request) (*http.R
 	if err != nil {
 		return nil, err
 	}
-	defer response.Body.Close()
 	return response, nil
 }
 
