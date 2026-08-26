@@ -143,10 +143,7 @@ func (e *Engine) SyncPeer(ctx context.Context, member model.Member) error {
 			return fmt.Errorf("read anti-entropy response: %w", readErr)
 		}
 		if response.StatusCode != http.StatusOK {
-			if cursor > 0 {
-				break
-			}
-			return fmt.Errorf("anti-entropy response status %d", response.StatusCode)
+			return fmt.Errorf("anti-entropy response status %d at cursor %d", response.StatusCode, cursor)
 		}
 		var payload AntiEntropyResponse
 		if err := json.Unmarshal(responseBody, &payload); err != nil {
